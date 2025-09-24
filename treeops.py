@@ -114,7 +114,7 @@ def do_run(fname):
     node = ast.parse(open(fname).read())
     v = NodeVisitor()
     v.visit(node)
-    print(f'The final value is {NodeVisitor.final_var}')
+    print(f'The result is {NodeVisitor.final_var}')
     return -1
 
 
