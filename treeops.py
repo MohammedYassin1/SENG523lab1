@@ -18,7 +18,9 @@ class NodeVisitor(ast.NodeVisitor):
 
     @staticmethod
     def get_children(node):
-        return list(ast.iter_child_nodes(node))
+        children = list(ast.iter_child_nodes(node))
+        children = [child for child in children if child.__class__.__name__ != "Load" and child.__class__.__name__ != "Store"]
+        return children
 
     @staticmethod
     def get_label(node):
