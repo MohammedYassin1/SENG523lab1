@@ -1,6 +1,45 @@
 import sys
 import ast
 
+
+class ConstantConditionVisitor(ast.NodeVisitor):
+    constant_condition = False
+
+    def visit_If(self, node):
+        self.constant_check(node.test)
+        if self.constant_condition == True:
+            print("Conditional statement with constant condition detected")
+            self.constant_condition = False
+        else:
+            print("no output")
+
+        self.generic_visit(node)
+    
+    def visit_IfExp(self, node):
+        self.constant_check(node.test)
+        if self.constant_condition == True:
+            print("Conditional statement with constant condition detected")
+            self.constant_condition = False
+        else:
+            print("no output")
+        self.generic_visit(node)
+
+    def constant_check(self, node):
+        if isinstance(node, ast.Constant):
+            self.constant_condition = True
+        elif isinstance(node, ast.Compare):
+            left = isinstance(node.left, ast.Constant)
+            rights = False
+            for comp in node.comparators:
+                if isinstance(comp, ast.Constant):
+                    rights = True
+                else:
+                    rights = False
+                    break
+            if left and rights:
+                self.constant_condition = True
+            
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "unused":
         return do_unused(sys.argv[2])
@@ -18,7 +57,8 @@ def main():
     
 # Exercise 1
 def do_unused(fname):
-    print("UNUSED not implemented")
+    ast.parse(open(fname).read())
+    
     return -1
 
 # Exercise 2
@@ -28,7 +68,10 @@ def do_returns(fname):
 
 # Exercise 3
 def do_constant(fname):
-    print("CONSTANT not implemented")
+    with open(fname) as f:
+        tree = ast.parse(f.read(), filename=fname)
+    visitor = ConstantConditionVisitor()
+    visitor.visit(tree)
     return -1
 
 # Exercise 4
