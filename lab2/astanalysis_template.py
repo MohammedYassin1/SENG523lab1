@@ -148,7 +148,62 @@ class ConstantConditionVisitor(ast.NodeVisitor):
                     break
             if left and rights:
                 self.constant_condition = True
+class UnusedVariableChecker(ast.NodeVisitor):
+    def __init__(self):
+        #dictionary to track unused, used, scope
+        self.stack = []
+        
+        
+
+    def visit_FunctionDef(self, node):
+        # print1 = []
+        # print2 = []
+        #when we visit a function we append the stack 
+        self.stack.append({"func": node.name, "used_vars": set(), "unused_vars": set(), "shadowed": set()})
+        #visit next
+        self.generic_visit(node)
+        #save the scope so you can compare iwht it
+        saved_scope = self.stack.pop()
+        
+        for var in saved_scope["unused_vars"]:
+            if var not in saved_scope["used_vars"]:
+                print(f"Variable {var} is defined but not used in scope {saved_scope['func']}")
+
+####SHADOWING PRINT STMT STILL PRINTS BEFORE
+        #basically if the variable is in the outer scope and inner scope flag it.
+        #so if the variable is in the used/unused list then check if its in the scope before this
+        if self.stack: #sstack not empty
+            outer = self.stack[-1]
+
+            for var in saved_scope["shadowed"]:
+                print(f"Variable {var} is shadowed across scopes")
             
+        
+
+# if a variable key value is false then it hasnt been used. If a variable key is anything else it is the func name 
+    def visit_Name(self, node):
+        #if it exists in a store context, it is not used
+        if isinstance(node.ctx, ast.Store):
+            #when a node is "stored" it is not used
+            self.stack[-1]["unused_vars"].add(node.id)
+
+            outer_vars = set()
+            for each_func in self.stack[:-1]:
+                outer_vars.update(each_func["used_vars"])
+                outer_vars.update(each_func["unused_vars"])
+
+            if node.id in outer_vars:
+                self.stack[-1]["shadowed"].add(node.id)
+
+
+        elif (node.ctx, ast.Load):
+            #when a node is "loaded" it is used so remove it from the unused_vars 
+            for each_scope in reversed(self.stack):
+                if node.id in each_scope["unused_vars"]:
+                    each_scope["used_vars"].add(node.id)
+                    each_scope["unused_vars"].remove(node.id)
+                    break
+             
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "unused":
@@ -167,8 +222,12 @@ def main():
     
 # Exercise 1
 def do_unused(fname):
-    ast.parse(open(fname).read())
-    
+    n1 = ast.parse(open(fname).read())
+
+    sc = UnusedVariableChecker()
+    sc.visit(n1)
+  
+    #print("UNUSED not implemented")
     return -1
 
 # Exercise 2
