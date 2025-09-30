@@ -223,7 +223,8 @@ class UnusedVariableChecker(ast.NodeVisitor):
     def __init__(self):
         #dictionary to track unused, used, scope
         self.stack = []
-        
+        self.print1 =[]
+        self.print2 =[]
         
 
     def visit_FunctionDef(self, node):
@@ -238,7 +239,7 @@ class UnusedVariableChecker(ast.NodeVisitor):
         
         for var in saved_scope["unused_vars"]:
             if var not in saved_scope["used_vars"]:
-                print(f"Variable {var} is defined but not used in scope {saved_scope['func']}")
+                self.print1.append(f"Variable {var} is defined but not used in scope {saved_scope['func']}")
 
 ####SHADOWING PRINT STMT STILL PRINTS BEFORE
         #basically if the variable is in the outer scope and inner scope flag it.
@@ -247,7 +248,7 @@ class UnusedVariableChecker(ast.NodeVisitor):
             outer = self.stack[-1]
 
             for var in saved_scope["shadowed"]:
-                print(f"Variable {var} is shadowed across scopes")
+                self.print2.append(f"Variable {var} is shadowed across scopes")
             
         
 
@@ -266,16 +267,14 @@ class UnusedVariableChecker(ast.NodeVisitor):
             if node.id in outer_vars:
                 self.stack[-1]["shadowed"].add(node.id)
 
-
         elif (node.ctx, ast.Load):
-            #when a node is "loaded" it is used so remove it from the unused_vars 
+            #when a node is "loaded" it is used so remove it from the unused_vars
             for each_scope in reversed(self.stack):
                 if node.id in each_scope["unused_vars"]:
                     each_scope["used_vars"].add(node.id)
                     each_scope["unused_vars"].remove(node.id)
                     break
-             
-
+   
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "unused":
         return do_unused(sys.argv[2])
@@ -297,7 +296,10 @@ def do_unused(fname):
 
     sc = UnusedVariableChecker()
     sc.visit(n1)
-  
+    for msg in sc.print1:
+        print(msg)
+    for msg in sc.print2:
+        print(msg)
     #print("UNUSED not implemented")
     return -1
 
