@@ -218,6 +218,7 @@ class ConstantConditionVisitor(ast.NodeVisitor):
                     break
             if left and rights:
                 self.constant_condition = True
+                
 class UnusedVariableChecker(ast.NodeVisitor):
     def __init__(self):
         #dictionary to track unused, used, scope
