@@ -274,6 +274,53 @@ class UnusedVariableChecker(ast.NodeVisitor):
                     each_scope["used_vars"].add(node.id)
                     each_scope["unused_vars"].remove(node.id)
                     break
+
+class MissingReturnChecker(ast.NodeVisitor):
+
+    def check_if_block(self, node):
+        for node in reversed(node.body):
+            if isinstance(node, ast.If):
+                if self.check_if_block(node) and self.check_else_block(node):
+                    # print("inner if both true")
+                    return True
+            if isinstance(node, ast.Return):
+                return True
+            # print(f"{ast.dump(node)}* ")
+
+    def check_else_block(self, node):
+        for node in reversed(node.orelse):
+            if isinstance(node, ast.If):
+                if self.check_if_block(node) and self.check_else_block(node):
+                    # print("inner else both true")
+                    return True
+            if isinstance(node, ast.Return):
+                return True
+            # print(f"{ast.dump(node)}** ")
+        return False
+
+    def check_func_block(self, node):
+        for node in reversed(node.body):
+            if isinstance(node, ast.If):
+                if self.check_if_block(node) and self.check_else_block(node):
+                    # print("both true")
+                    return True
+                #return self.check_if_block(node)
+                # if not self.check_if_block(node):
+                #     return False
+            if isinstance(node, ast.Return):
+                return True
+            # print(f"{ast.dump(node)}**** ")
+        return False
+
+    def visit_FunctionDef(self, node):
+        # print(f"Function {node.name} missing return statement")
+        # if not any(isinstance(n, ast.Return) for n in ast.walk(node)):
+        #     print(f"Function {node.name} is missing a return statement")
+        if not self.check_func_block(node):
+            print(f"Function {node.name} is missing a return statement")
+
+    def generic_visit(self, node):
+        return super().generic_visit(node)
    
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "unused":
@@ -305,7 +352,11 @@ def do_unused(fname):
 
 # Exercise 2
 def do_returns(fname):
-    print("RETURNS not implemented")
+    n1 = ast.parse(open(fname).read())
+    # print(ast.dump(n1, indent=4))
+    rc = MissingReturnChecker()
+    rc.visit(n1)
+    # print("RETURNS not implemented")
     return -1
 
 # Exercise 3
