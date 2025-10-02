@@ -85,10 +85,15 @@ class TaintAnalyzer(ast.NodeVisitor):
     tainted_vars = set()
 
     def visit_Assign(self, node):
-        # print(f"Visiting Assign node at line {node.lineno}")
-        # print(ast.dump(node.value))
-        # for target in node.targets:
-            # print(f"Assignment to {ast.dump(target)}")
+        for target in node.targets:
+            if isinstance(target, ast.Tuple):
+                for elt in target.elts:
+                    if isinstance(elt, ast.Name) and elt.id in self.tainted_vars:
+                        self.tainted_vars.remove(elt.id)
+            if isinstance(target, ast.Name):
+                if target.id in self.tainted_vars:
+                    self.tainted_vars.remove(target.id)
+
         if isinstance(node.value, ast.Call):
             if isinstance(node.value.func, ast.Name):
                 if node.value.func.id in self.sources:
