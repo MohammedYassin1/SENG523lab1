@@ -67,7 +67,7 @@
 #         print("Hello")
 
 # def myfunction(a, b):
-#     if 0 == a:
+#     if 0 == 0:
 #         print("Yep, still zero")
 
 # def myfunction(a, b):
@@ -82,7 +82,7 @@
 # def myfunction(a, b):
 #     myvar = "HULLO"
 
-import os
+# import os
 
 # def myfunction(a, b):
 #     cmd = input()

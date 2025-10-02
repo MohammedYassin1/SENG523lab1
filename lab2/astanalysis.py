@@ -19,14 +19,11 @@ class SecretAnalyzer(ast.NodeVisitor):
         return bool(SecretAnalyzer.stringRegex.fullmatch(s))
 
     def visit_Assign(self, node):
-        # print(f"Visiting Assign node at line {node.lineno}")
         for target in node.targets:
             if isinstance(target, ast.Name):
                 if self.check_keyword(target.id):
-                    #print(f"Found secret variable name: {target.id} at line {node.lineno}")
                     if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
                         if self.check_string(node.value.value):
-                            #print(f"Found secret string constant: {node.value.value} at line {node.lineno}")
                             print(f"Variable {target.id} assigned possible secret {node.value.value}")
         return self.generic_visit(node)
 
@@ -36,10 +33,6 @@ class SecretAnalyzer(ast.NodeVisitor):
 def tainted_equation(node):
     if isinstance(node, ast.Call):
         return node
-            # for arg in node.args:
-            #     if isinstance(arg, ast.Name) and arg.id in TaintAnalyzer.tainted_vars:
-            #         print("fuck")
-            #         return True
     if isinstance(node, ast.Name):
         return node
     if isinstance(node, ast.Constant):
@@ -47,10 +40,6 @@ def tainted_equation(node):
     if isinstance(node, ast.BinOp):
         left = tainted_equation(node.left)
         right = tainted_equation(node.right)
-        # print(f"Binary operation {ast.dump(node)}")
-        # print(TaintAnalyzer.tainted_vars)
-        # print(f"Left: {ast.dump(node.left)}, Right: {ast.dump(node.right)}")
-        # print(f"Left: {ast.dump(left)}, Right: {ast.dump(right)}")
 
         if type(left) is bool:
             return left
@@ -68,11 +57,6 @@ def tainted_equation(node):
                         return True
         left_tainted = isinstance(left, ast.Name) and left.id in TaintAnalyzer.tainted_vars
         right_tainted = isinstance(right, ast.Name) and right.id in TaintAnalyzer.tainted_vars
-        # if isinstance(right, ast.BinOp):
-        #     print("loc1")
-        # if right.id in TaintAnalyzer.tainted_vars:
-        #     print("loc2")
-        # print(f"Left tainted: {left_tainted}, Right tainted: {right_tainted}")
         return left_tainted or right_tainted
     return False
     
@@ -102,11 +86,8 @@ class TaintAnalyzer(ast.NodeVisitor):
                             for elt in target.elts:
                                 if isinstance(elt, ast.Name):
                                     self.tainted_vars.add(elt.id)
-                                    # print(f"Variable {elt.id} is tainted from source {node.value.func.id}")
                         if isinstance(target, ast.Name):
                             self.tainted_vars.add(target.id)
-                            # print(f"Variable {target.id} is tainted from source {node.value.func.id}")
-                    # print(f"Found taint source {node.value.func.id}")
         if isinstance(node.value, ast.Name):
             if node.value.id in self.tainted_vars:
                 for target in node.targets:
@@ -114,49 +95,23 @@ class TaintAnalyzer(ast.NodeVisitor):
                         for elt in target.elts:
                             if isinstance(elt, ast.Name):
                                 self.tainted_vars.add(elt.id)
-                                # print(f"Variable {elt.id} is tainted from variable {node.value.id}")
                     if isinstance(target, ast.Name):
                         self.tainted_vars.add(target.id)
-                        # print(f"Variable {target.id} is tainted from variable {node.value.id}")
-                # print(f"Assignment from variable {node.value.id}")
         if isinstance(node.value, ast.BinOp):
             if tainted_equation(node.value):
-                # print("Taint")
                 for target in node.targets:
                     if isinstance(target, ast.Tuple):
                         for elt in target.elts:
                             if isinstance(elt, ast.Name):
                                 self.tainted_vars.add(elt.id)
-                                # print(f"Variable {elt.id} is tainted from binary operation")
                     if isinstance(target, ast.Name):
                         self.tainted_vars.add(target.id)
-                        # print(f"Variable {target.id} is tainted from binary operation")
-            # else:
-            #     print("No Taint")
-            # print(f"Binary operation {tainted_equation(node.value)}")
-            # left = node.value.left
-            # right = node.value.right
-            # left_tainted = isinstance(left, ast.Name) and left.id in self.tainted_vars
-            # right_tainted = isinstance(right, ast.Name) and right.id in self.tainted_vars
-            # if left_tainted or right_tainted:
-            #     for target in node.targets:
-            #         if isinstance(target, ast.Tuple):
-            #             for elt in target.elts:
-            #                 if isinstance(elt, ast.Name):
-            #                     self.tainted_vars.add(elt.id)
-            #                     # print(f"Variable {elt.id} is tainted from binary operation")
-            #         if isinstance(target, ast.Name):
-            #             self.tainted_vars.add(target.id)
-                        # print(f"Variable {target.id} is tainted from binary operation")
-                # print(f"Assignment from binary operation with tainted variable")
         
         if isinstance(node.value, ast.Call):
             if isinstance(node.value, ast.Call):
                 if isinstance(node.value.func, ast.Name):
                     if node.value.func.id == "sanitized":
                         return self.generic_visit(node)
-                        #return
-                        # self.tainted_vars.remove(node.value.args[0].id)
 
 
             for arg in node.value.args:
@@ -164,8 +119,6 @@ class TaintAnalyzer(ast.NodeVisitor):
                     for target in node.targets:
                         if isinstance(target, ast.Name):
                             self.tainted_vars.add(target.id)
-                            # print(f"Variable {target.id} is tainted from function argument {args.id}")
-                    # print(f"Function argument {args.id} is tainted")
                     
             
         
@@ -178,12 +131,9 @@ class TaintAnalyzer(ast.NodeVisitor):
                 if func_name in self.sinks:
                     for arg in node.value.args:
                         if isinstance(arg, ast.Name) and arg.id in self.tainted_vars:
-                            # print(f"Tainted variable {arg.id} used in sink function {func_name} at line {node.lineno}")
-                            # print(f"Sink function call: {ast.dump(node)}")
                             print("Unsafe data flow between source and sink detected")
 
     def generic_visit(self, node):
-        # print(f"visiting {type(node).__name__}")
         return super().generic_visit(node)
 
 
@@ -286,41 +236,29 @@ class MissingReturnChecker(ast.NodeVisitor):
         for node in reversed(node.body):
             if isinstance(node, ast.If):
                 if self.check_if_block(node) and self.check_else_block(node):
-                    # print("inner if both true")
                     return True
             if isinstance(node, ast.Return):
                 return True
-            # print(f"{ast.dump(node)}* ")
 
     def check_else_block(self, node):
         for node in reversed(node.orelse):
             if isinstance(node, ast.If):
                 if self.check_if_block(node) and self.check_else_block(node):
-                    # print("inner else both true")
                     return True
             if isinstance(node, ast.Return):
                 return True
-            # print(f"{ast.dump(node)}** ")
         return False
 
     def check_func_block(self, node):
         for node in reversed(node.body):
             if isinstance(node, ast.If):
                 if self.check_if_block(node) and self.check_else_block(node):
-                    # print("both true")
                     return True
-                #return self.check_if_block(node)
-                # if not self.check_if_block(node):
-                #     return False
             if isinstance(node, ast.Return):
                 return True
-            # print(f"{ast.dump(node)}**** ")
         return False
 
     def visit_FunctionDef(self, node):
-        # print(f"Function {node.name} missing return statement")
-        # if not any(isinstance(n, ast.Return) for n in ast.walk(node)):
-        #     print(f"Function {node.name} is missing a return statement")
         if not self.check_func_block(node):
             print(f"Function {node.name} is missing a return statement")
 
@@ -352,16 +290,13 @@ def do_unused(fname):
         print(msg)
     for msg in sc.print2:
         print(msg)
-    #print("UNUSED not implemented")
     return -1
 
 # Exercise 2
 def do_returns(fname):
     n1 = ast.parse(open(fname).read())
-    # print(ast.dump(n1, indent=4))
     rc = MissingReturnChecker()
     rc.visit(n1)
-    # print("RETURNS not implemented")
     return -1
 
 # Exercise 3
@@ -375,25 +310,15 @@ def do_constant(fname):
 # Exercise 4
 def do_secret(fname):
     tree1 = ast.parse(open(fname).read())
-    #print(ast.dump(tree1, indent=4))
     analyzer = SecretAnalyzer()
     analyzer.visit(tree1)
-    # f = "WOWSECRET_124_ABSD"
-    # if SecretAnalyzer.check_keyword(f):
-    #     print("Matched!")
-    # if SecretAnalyzer.check_string(f):
-    #     print("Matched!")
-    # print("SECRET not implemented")
     return -1
 
 # Exercise 5
 def do_taint(fname):
     tree1 = ast.parse(open(fname).read())
-    # print(ast.dump(tree1, indent=4))
     analyzer = TaintAnalyzer()
     analyzer.visit(tree1)
-    # print(f"Tainted variables: {TaintAnalyzer.tainted_vars}")
-    # print("TAINT not implemented")
     return -1
 
 
