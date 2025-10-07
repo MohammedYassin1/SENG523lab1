@@ -102,6 +102,7 @@ class Builder(ast.NodeVisitor):
     def __init__(self, cfg: ControlFlowGraph):
         self.cfg = cfg
         self.current_block: Optional[BasicBlock] = cfg.entry
+        self.defer_join: bool = False  # for if-statements without else
 
     # def __str__(self):
     #     return f"Builder(current_block={self.current_block})"
@@ -116,7 +117,7 @@ class Builder(ast.NodeVisitor):
     def visit_Assign(self, node):
         # print(f"Visiting Assign: {ast.dump(node)}")
         if self.current_block == self.cfg.entry:
-            print("Creating first basic block")
+            # print("Creating first basic block")
             self.current_block = BasicBlock()
             self.cfg.add_block(self.current_block)
             self.cfg.add_edge(self.cfg.entry, self.current_block)
@@ -145,7 +146,7 @@ class Builder(ast.NodeVisitor):
 
     def visit_Call(self, node):
         if self.current_block == self.cfg.entry:
-            print("Creating first basic block")
+            # print("Creating first basic block")
             self.current_block = BasicBlock()
             self.cfg.add_block(self.current_block)
             self.cfg.add_edge(self.cfg.entry, self.current_block)
@@ -215,15 +216,64 @@ class Builder(ast.NodeVisitor):
 
         
 
+    # def visit_If(self, node):
+    #     if self.current_block == self.cfg.entry:
+    #         #old_block = self.current_block
+    #         self.current_block = BasicBlock()
+    #         self.cfg.add_block(self.current_block)
+    #         self.cfg.add_edge(self.current_block, self.cfg.entry)
+
+    #     # check if variable used in if condition
+    #     use_set = set(get_uses(node.test))
+
+    #     self.current_block.add_statement(Statement(
+    #         stmt_type=StatementType.IF,
+    #         def_set=set(),
+    #         use_set=use_set,
+    #         ast_node=node
+    #     ))
+
+    #     if_block = self.current_block
+
+    #     then_block = BasicBlock()
+
+    #     self.current_block = then_block
+    #     self.cfg.add_edge(if_block, self.current_block)
+    #     self.cfg.add_block(self.current_block)
+
+    #     for stmt in node.body:
+    #         self.current_block = self.visit(stmt)
+    #     then_exit = self.current_block
+    #     print(f"Then exit: {then_exit}")
+
+    #     if node.orelse:
+    #         else_block = BasicBlock()
+    #         self.current_block = else_block
+    #         self.cfg.add_edge(if_block, self.current_block)
+    #         self.cfg.add_block(self.current_block)
+
+    #         for stmt in node.orelse:
+    #             self.visit(stmt)
+
+    #     self.current_block = BasicBlock()
+    #     self.cfg.add_block(self.current_block)
+    #     self.cfg.add_edge(then_exit, self.current_block)
+    #     if node.orelse:
+    #         self.cfg.add_edge(else_block, self.current_block)
+    #     else:
+    #         self.cfg.add_edge(if_block, self.current_block)
+
+    #     return self.current_block
+    
     def visit_If(self, node):
-        old_block = self.current_block
-        self.current_block = BasicBlock()
-        self.cfg.add_block(self.current_block)
-        self.cfg.add_edge(old_block, self.current_block)
+        # ensure the entry->first block link is correct
+        if self.current_block == self.cfg.entry:
+            self.current_block = BasicBlock()
+            self.cfg.add_block(self.current_block)
+            self.cfg.add_edge(self.cfg.entry, self.current_block)
 
-        # check if variable used in if condition
+        # record condition use and statement
         use_set = set(get_uses(node.test))
-
         self.current_block.add_statement(Statement(
             stmt_type=StatementType.IF,
             def_set=set(),
@@ -233,32 +283,65 @@ class Builder(ast.NodeVisitor):
 
         if_block = self.current_block
 
+        # --- THEN branch ---
         then_block = BasicBlock()
+        self.cfg.add_block(then_block)
+        self.cfg.add_edge(if_block, then_block)
+
+        # tell nested ifs that the parent will handle join-for-no-else
+        prev_defer = getattr(self, "defer_join", False)
+        self.defer_join = True
 
         self.current_block = then_block
-        self.cfg.add_edge(if_block, self.current_block)
-        self.cfg.add_block(self.current_block)
-
         for stmt in node.body:
             self.current_block = self.visit(stmt)
         then_exit = self.current_block
 
+        # restore defer flag before handling else (so nested siblings behave correctly)
+        self.defer_join = prev_defer
+
+        # --- ELSE branch (if any) ---
         if node.orelse:
             else_block = BasicBlock()
+            self.cfg.add_block(else_block)
+            self.cfg.add_edge(if_block, else_block)
+
+            # while visiting else-body, nested ifs should also defer joins
+            prev_defer = getattr(self, "defer_join", False)
+            self.defer_join = True
+
             self.current_block = else_block
-            self.cfg.add_edge(if_block, self.current_block)
-            self.cfg.add_block(self.current_block)
-
             for stmt in node.orelse:
-                self.visit(stmt)
+                self.current_block = self.visit(stmt)
+            else_exit = self.current_block
 
-        self.current_block = BasicBlock()
-        self.cfg.add_block(self.current_block)
-        self.cfg.add_edge(then_exit, self.current_block)
-        if node.orelse:
-            self.cfg.add_edge(else_block, self.current_block)
+            self.defer_join = prev_defer
+
+            # both branches exist -> we must create a join block here
+            join_block = BasicBlock()
+            self.cfg.add_block(join_block)
+            # connect both branch exits to join
+            if then_exit is not None:
+                self.cfg.add_edge(then_exit, join_block)
+            if else_exit is not None:
+                self.cfg.add_edge(else_exit, join_block)
+            self.current_block = join_block
+
         else:
-            self.cfg.add_edge(if_block, self.current_block)
+            # no else:
+            # if a caller (an outer if/branch) will create the join, don't create
+            if getattr(self, "defer_join", False):
+                # return the then-exit so the caller can link it to its join
+                self.current_block = then_exit
+            else:
+                # top-level/no-defer: we must create a join (fall-through)
+                join_block = BasicBlock()
+                self.cfg.add_block(join_block)
+                if then_exit is not None:
+                    self.cfg.add_edge(then_exit, join_block)
+                # fallthrough edge from condition (if_block) to join
+                self.cfg.add_edge(if_block, join_block)
+                self.current_block = join_block
 
         return self.current_block
 
@@ -348,6 +431,9 @@ def get_uses(node):
         for key, value in zip(node.keys, node.values):
             uses.update(get_uses(key))
             uses.update(get_uses(value))
+
+    if isinstance(node, ast.Return):
+        uses.update(get_uses(node.value))
 
     return list(uses)
     
