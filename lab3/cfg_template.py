@@ -97,6 +97,50 @@ class BasicBlock:
         block_lines.append(f"\tSuccessors: {', '.join(sorted(format_block_id(succ) for succ in self.successors))}")
 
         return "\n".join(block_lines)
+    
+    def reaching_definitions_str(self):
+        block_lines = [f"Basic Block {self.id}:"]
+        
+        # Format gen_set (tuples of (variable, block_id))
+        gen_items = ""
+        if hasattr(self, 'gen_set') and self.gen_set:
+            gen_list = [f"({var}, {block_id})" for var, block_id in sorted(self.gen_set, key=lambda x: (x[1], x[0]))]
+            gen_items = f" {', '.join(gen_list)}"
+        block_lines.append(f"\tgens:{gen_items}")
+        
+        # Format kill_set (tuples of (variable, block_id))
+        kill_items = ""
+        if hasattr(self, 'kill_set') and self.kill_set:
+            kill_list = [f"({var}, {block_id})" for var, block_id in sorted(self.kill_set, key=lambda x: (x[1], x[0]))]
+            kill_items = f" {', '.join(kill_list)}"
+        block_lines.append(f"\tkills:{kill_items}")
+        
+        # Format in_set (tuples of (variable, block_id))
+        in_items = ""
+        if hasattr(self, 'in_rd') and self.in_rd:
+            in_list = [f"({var}, {block_id})" for var, block_id in sorted(self.in_rd, key=lambda x: (x[1], x[0]))]
+            in_items = f"{', '.join(in_list)}"
+        block_lines.append(f"\tin: {in_items}")
+        
+        # Format out_set (tuples of (variable, block_id))
+        out_items = ""
+        if hasattr(self, 'out_rd') and self.out_rd:
+            out_list = [f"({var}, {block_id})" for var, block_id in sorted(self.out_rd, key=lambda x: (x[1], x[0]))]
+            out_items = f"{', '.join(out_list)}"
+        block_lines.append(f"\tout: {out_items}")
+        
+        def format_block_id(block):
+            if block.id == "Entry":
+                return "BB0"
+            elif block.id == "Exit":
+                return f"BB{_basic_block_counter+1}"
+            else:
+                return block.id
+
+        block_lines.append(f"\tPredecessors: {','.join(sorted([format_block_id(pred) for pred in self.predecessors]))}")
+        block_lines.append(f"\tSuccessors: {', '.join(sorted([format_block_id(succ) for succ in self.successors]))}")
+
+        return "\n".join(block_lines)
 
 class EntryBlock(BasicBlock):
     def __init__(self):
@@ -135,6 +179,13 @@ class ControlFlowGraph:
         for block in sorted(self.blocks, key=lambda b: b.id):
             if block.id not in ("Entry", "Exit"):
                 print(block.liveness_str())
+        print(f"Basic Block {_next_basic_block_id()}: {self.exit.id}\n\tPredecessors: {', '.join(pred.id for pred in self.exit.predecessors)}\n\tSuccessors:")
+
+    def cfg_printex3(self):
+        print(f"Basic Block BB0: {self.entry.id}\n\tPredecessors:\n\tSuccessors: {', '.join(succ.id for succ in self.entry.successors)}")
+        for block in sorted(self.blocks, key=lambda b: b.id):
+            if block.id not in ("Entry", "Exit"):
+                print(block.reaching_definitions_str())
         print(f"Basic Block {_next_basic_block_id()}: {self.exit.id}\n\tPredecessors: {', '.join(pred.id for pred in self.exit.predecessors)}\n\tSuccessors:")
 
 class Builder(ast.NodeVisitor):
@@ -442,7 +493,49 @@ def make_queue(cfg: ControlFlowGraph):
                 if predecessor not in bb_queue:
                     bb_queue.append(predecessor)
                     
+def reaching_definition(cfg: ControlFlowGraph):
+    #create in and out set for each bb
+    for bb in cfg.blocks:
+        #initialize in, out, gen, kill sets
+        bb.in_rd = set()
+        bb.out_rd = set()
+        bb.gen_set = set()
+        bb.kill_set = set()
+        temp = set()
 
+    # compute gen and kill sets
+        for stmt in bb.statements:
+            for var in stmt.def_set:
+                bb.gen_set.add((var, bb.id))
+                temp.add(var)
+        
+        for other_bb in cfg.blocks:
+            if other_bb is not bb:
+                for stmt in other_bb.statements:
+                    for var in stmt.def_set:
+                        if var in temp:
+                            bb.kill_set.add((var, other_bb.id))
+
+    # iterative computation of in and out sets
+    changed = True
+    while changed:
+        changed = False
+        for bb in cfg.blocks:
+            old_in = bb.in_rd.copy()
+            old_out = bb.out_rd.copy()
+
+            # update in set
+            new_in = set()
+            for pred in bb.predecessors:
+                new_in = new_in | pred.out_rd
+            bb.in_rd = new_in
+
+            # update out set
+            bb.out_rd = bb.gen_set | (bb.in_rd - bb.kill_set)
+
+            # check if changed
+            if bb.in_rd != old_in or bb.out_rd != old_out:
+                changed = True
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "CFG":
@@ -475,7 +568,11 @@ def do_liveness(fname):
 
 # Exercise 3
 def do_reaching(fname):
-    print("REACHING not implemented")
+    tree = ast.parse(open(fname).read(), filename=fname)
+    my_cfg = make_cfg(tree)
+    reaching_definition(my_cfg)
+    my_cfg.cfg_printex3()
+    #print("REACHING not implemented")
     return -1
 
 
