@@ -65,6 +65,38 @@ class BasicBlock:
         block_lines.append(f"\tSuccessors: {', '.join(format_block_id(succ) for succ in self.successors)}")
 
         return "\n".join(block_lines)
+    
+    def liveness_str(self):
+        # if self.id == "Entry":
+        #     return ""
+        #     return f"Basic Block BB0: {self.id}\n\tPredecessors:\n\tSuccessors: {', '.join(succ.id for succ in self.successors)}"
+        # if self.id == "Exit":
+        #     return ""
+        #     return f"Basic Block {_next_basic_block_id()}: {self.id}"
+        
+        block_lines = [f"Basic Block {self.id}:"]
+        #block_lines.append(f"\tStatements:")
+        #for stmt in self.statements:
+        def_items = f" {','.join(sorted(self.def_set))}" if self.def_set else ""
+        use_items = f" {','.join(sorted(self.use_set))}" if self.use_set else ""
+        block_lines.append(f"\tdefs:{def_items}")
+        block_lines.append(f"\tuses:{use_items}")
+        in_items = f"{','.join(sorted(self.in_set))}" if hasattr(self, 'in_set') and self.in_set else ""
+        out_items = f"{','.join(sorted(self.out_set))}" if hasattr(self, 'out_set') and self.out_set else ""
+        block_lines.append(f"\tin: {in_items}")
+        block_lines.append(f"\tout: {out_items}")
+        def format_block_id(block):
+            if block.id == "Entry":
+                return "BB0"
+            elif block.id == "Exit":
+                return f"BB{_basic_block_counter+1}"
+            else:
+                return block.id
+
+        block_lines.append(f"\tPredecessors: {', '.join(format_block_id(pred) for pred in self.predecessors)}")
+        block_lines.append(f"\tSuccessors: {', '.join(format_block_id(succ) for succ in self.successors)}")
+
+        return "\n".join(block_lines)
 
 class EntryBlock(BasicBlock):
     def __init__(self):
@@ -96,6 +128,13 @@ class ControlFlowGraph:
         for block in sorted(self.blocks, key=lambda b: b.id):
             if block.id not in ("Entry", "Exit"):
                 print(block)
+        print(f"Basic Block {_next_basic_block_id()}: {self.exit.id}\n\tPredecessors: {', '.join(pred.id for pred in self.exit.predecessors)}\n\tSuccessors:")
+
+    def cfg_printex2(self):
+        print(f"Basic Block BB0: {self.entry.id}\n\tPredecessors:\n\tSuccessors: {', '.join(succ.id for succ in self.entry.successors)}")
+        for block in sorted(self.blocks, key=lambda b: b.id):
+            if block.id not in ("Entry", "Exit"):
+                print(block.liveness_str())
         print(f"Basic Block {_next_basic_block_id()}: {self.exit.id}\n\tPredecessors: {', '.join(pred.id for pred in self.exit.predecessors)}\n\tSuccessors:")
 
 class Builder(ast.NodeVisitor):
@@ -460,6 +499,44 @@ def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
 
     return cfg
 
+def make_queue(cfg: ControlFlowGraph):
+    #create in and out set for each bb
+    for bb in cfg.blocks:
+        bb.in_set = set()
+        bb.out_set = set()
+
+    #create a queue to add all bbs to
+    bb_queue = []
+    bb_queue.append(cfg.entry)
+
+    for bb in cfg.blocks:
+        bb_queue.append(bb)
+
+    bb_queue.append(cfg.exit)
+
+    ##update in and out sets
+    while bb_queue:
+        #Pull a node from the head of the queue
+        bb = bb_queue.pop(0)
+
+        old_in = bb.in_set.copy()
+        old_out = bb.out_set.copy()
+
+        #update in and out sets
+
+        if bb.successors:
+            new_out = set()
+            for successor in bb.successors:
+                new_out = new_out | successor.in_set
+            bb.out_set= new_out
+
+        bb.in_set = bb.use_set | (bb.out_set - bb.def_set)
+
+        if bb.in_set != old_in:
+            for predecessor in bb.predecessors:
+                if predecessor not in bb_queue:
+                    bb_queue.append(predecessor)
+
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "CFG":
@@ -483,7 +560,11 @@ def do_CFG(fname):
 
 # Exercise 2
 def do_liveness(fname):
-    print("LIVENESS not implemented")
+    tree = ast.parse(open(fname).read(), filename=fname)
+    my_cfg = make_cfg(tree)
+    make_queue(my_cfg)
+    my_cfg.cfg_printex2()
+    #print("LIVENESS not implemented")
     return -1
 
 # Exercise 3
