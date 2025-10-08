@@ -101,28 +101,28 @@ class BasicBlock:
     def reaching_definitions_str(self):
         block_lines = [f"Basic Block {self.id}:"]
         
-        # Format gen_set (tuples of (variable, block_id))
+        # Format gen_set
         gen_items = ""
         if hasattr(self, 'gen_set') and self.gen_set:
             gen_list = [f"({var}, {block_id})" for var, block_id in sorted(self.gen_set, key=lambda x: (x[1], x[0]))]
             gen_items = f" {', '.join(gen_list)}"
         block_lines.append(f"\tgens:{gen_items}")
         
-        # Format kill_set (tuples of (variable, block_id))
+        # Format kill_set 
         kill_items = ""
         if hasattr(self, 'kill_set') and self.kill_set:
             kill_list = [f"({var}, {block_id})" for var, block_id in sorted(self.kill_set, key=lambda x: (x[1], x[0]))]
             kill_items = f" {', '.join(kill_list)}"
         block_lines.append(f"\tkills:{kill_items}")
         
-        # Format in_set (tuples of (variable, block_id))
+        # Format in_set 
         in_items = ""
         if hasattr(self, 'in_rd') and self.in_rd:
             in_list = [f"({var}, {block_id})" for var, block_id in sorted(self.in_rd, key=lambda x: (x[1], x[0]))]
             in_items = f"{', '.join(in_list)}"
         block_lines.append(f"\tin: {in_items}")
         
-        # Format out_set (tuples of (variable, block_id))
+        # Format out_set 
         out_items = ""
         if hasattr(self, 'out_rd') and self.out_rd:
             out_list = [f"({var}, {block_id})" for var, block_id in sorted(self.out_rd, key=lambda x: (x[1], x[0]))]
