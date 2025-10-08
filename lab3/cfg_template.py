@@ -61,8 +61,8 @@ class BasicBlock:
             else:
                 return block.id
 
-        block_lines.append(f"\tPredecessors: {', '.join(format_block_id(pred) for pred in self.predecessors)}")
-        block_lines.append(f"\tSuccessors: {', '.join(format_block_id(succ) for succ in self.successors)}")
+        block_lines.append(f"\tPredecessors: {', '.join(sorted(format_block_id(pred) for pred in self.predecessors))}")
+        block_lines.append(f"\tSuccessors: {', '.join(sorted(format_block_id(succ) for succ in self.successors))}")
 
         return "\n".join(block_lines)
     
@@ -93,8 +93,8 @@ class BasicBlock:
             else:
                 return block.id
 
-        block_lines.append(f"\tPredecessors: {', '.join(format_block_id(pred) for pred in self.predecessors)}")
-        block_lines.append(f"\tSuccessors: {', '.join(format_block_id(succ) for succ in self.successors)}")
+        block_lines.append(f"\tPredecessors: {', '.join(sorted(format_block_id(pred) for pred in self.predecessors))}")
+        block_lines.append(f"\tSuccessors: {', '.join(sorted(format_block_id(succ) for succ in self.successors))}")
 
         return "\n".join(block_lines)
 
