@@ -140,11 +140,19 @@ class Builder(ast.NodeVisitor):
 
         # Connect current block to inner CFG entry
         self.cfg.add_edge(self.current_block, inner_cfg.entry)
+        self.cfg.add_edge(self.current_block, inner_cfg.exit)
+
+        # create exit block for if statement
+        # add edge from entry and exit of inner cfg
+        # set exit block as current block
 
         # After processing the if body, create a new block for subsequent statements
         old_block = self.current_block
         self.current_block = BasicBlock()
         self.cfg.add_block(self.current_block)
+
+        # set exit block as current block
+        self.cfg.exit = self.current_block
 
         # Connect all exit blocks of inner CFG to the new current block
         # for block in inner_cfg.blocks:
@@ -199,6 +207,8 @@ def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
     cfg = ControlFlowGraph()
     cfg.entry = BasicBlock()
     cfg.add_block(cfg.entry)
+    # cfg.exit = BasicBlock()
+    # cfg.add_block(cfg.exit)
     # cfg.exit = BasicBlock()
     # cfg.add_block(BasicBlock())
     builder = Builder(cfg)
