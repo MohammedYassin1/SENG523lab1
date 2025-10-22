@@ -217,17 +217,47 @@ class Builder(ast.NodeVisitor):
         ))
 
     def visit_Call(self, node):
+        # Handle standalone calls (like sink(x)) as OTHER, and keep print as PRINT
         if isinstance(node.func, ast.Name) and node.func.id == "print":
-            # use_set = set()
-            # for arg in node.args:
-            #     if isinstance(arg, ast.Name):
-            #         use_set.add(arg.id)
             self.current_block.add_statement(Statement(
                 stmt_type=StatementType.PRINT,
                 def_set=set(),
-                use_set=get_uses(node),
+                use_set=set(get_uses(node)),
                 ast_node=node
             ))
+        else:
+            # Standalone call (e.g., sink(x))
+            self.current_block.add_statement(Statement(
+                stmt_type=StatementType.OTHER,
+                def_set=set(),
+                use_set=set(get_uses(node)),
+                ast_node=node
+            ))
+
+    def visit_Return(self, node):
+        self.current_block.add_statement(Statement(
+            stmt_type=StatementType.RETURN,
+            def_set=set(),
+            use_set=set(get_uses(node)),
+            ast_node=node
+        ))
+
+    def visit_AugAssign(self, node):
+        # Handle augmented assignments like x -= 1
+        target = None
+        if isinstance(node.target, ast.Name):
+            target = node.target.id
+        uses = set()
+        # augmented assign reads the target and the value
+        if target:
+            uses.add(target)
+        uses.update(get_uses(node.value))
+        self.current_block.add_statement(Statement(
+            stmt_type=StatementType.ASSIGNMENT,
+            def_set={target} if target else set(),
+            use_set=uses,
+            ast_node=node
+        ))
 
     def visit_If(self, node):
         # Add IF condition into current block

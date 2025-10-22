@@ -210,7 +210,22 @@ class Builder(ast.NodeVisitor):
     def _any_block_has_statements(self, blocks):
         return any(len(b.statements) > 0 for b in blocks)
     
-    
+    def visit_AugAssign(self, node):
+        # Handle augmented assignments like x -= 1
+        target = None
+        if isinstance(node.target, ast.Name):
+            target = node.target.id
+        uses = set()
+        # augmented assign reads the target and the value
+        if target:
+            uses.add(target)
+        uses.update(get_uses(node.value))
+        self.current_block.add_statement(Statement(
+            stmt_type=StatementType.ASSIGNMENT,
+            def_set={target} if target else set(),
+            use_set=uses,
+            ast_node=node
+        ))
 
     def visit_Assign(self, node):
         self.current_block.add_statement(Statement(
@@ -219,6 +234,15 @@ class Builder(ast.NodeVisitor):
             use_set=get_uses(node.value),
             ast_node=node
         ))
+
+    def visit_Return(self, node):
+        self.current_block.add_statement(Statement(
+            stmt_type=StatementType.RETURN,
+            def_set=set(),
+            use_set=set(get_uses(node)),
+            ast_node=node
+        ))
+
 
     def visit_Call(self, node):
         if isinstance(node.func, ast.Name) and node.func.id == "print":
@@ -298,134 +322,39 @@ class Builder(ast.NodeVisitor):
         self.current_block = merge_block
 
     def visit_While(self, node):
-        parent_block = self.current_block
-
-        cond_block = BasicBlock()
-        self.cfg.add_block(cond_block)
-        self.cfg.add_edge(parent_block, cond_block)
-
+        # Use the current block for the while condition (avoid creating an empty pre-loop block)
+        cond_block = self.current_block
         cond_block.add_statement(Statement(
             stmt_type=StatementType.WHILE,
             def_set=set(),
-            use_set=get_uses(node.test),
+            use_set=set(get_uses(node.test)),
             ast_node=node
         ))
 
-        body_module = ast.Module(body=node.body, type_ignores=[])
-        body_cfg = make_cfg(body_module)
-        self.cfg.blocks.update(body_cfg.blocks)
-        self.cfg.add_edge(cond_block, body_cfg.entry)
+        # Create body block
+        body_block = BasicBlock()
+        self.cfg.add_block(body_block)
+        cond_block.successors.add(body_block)
+        body_block.predecessors.add(cond_block)
 
-        body_exits = [b for b in body_cfg.blocks if len(b.successors) == 0]
-        for b in body_exits:
-            self.cfg.add_edge(b, cond_block)
+        # Visit loop body
+        self.current_block = body_block
+        for stmt in node.body:
+            self.visit(stmt)
 
-        if node.orelse:
-            else_module = ast.Module(body=node.orelse, type_ignores=[])
-            else_cfg = make_cfg(else_module)
-            self.cfg.blocks.update(else_cfg.blocks)
-            
-            self.cfg.add_edge(cond_block, else_cfg.entry)
-            else_exits = [b for b in else_cfg.blocks if len(b.successors) == 0]
-            fallthrough_exits = else_exits
-        else:
-            fallthrough_exits = [cond_block]
+        # Connect the end of the body back to the condition (loop back edge)
+        self.current_block.successors.add(cond_block)
+        cond_block.predecessors.add(self.current_block)
 
-        
-        merge_block = None
-        
-        for b in fallthrough_exits:
-            if b is not cond_block and not b.statements:
-                merge_block = b
-                break
-        
-        if merge_block is None:
-            merge_block = BasicBlock()
-            self.cfg.add_block(merge_block)
+        # Create exit block (after the loop)
+        exit_block = BasicBlock()
+        self.cfg.add_block(exit_block)
+        cond_block.successors.add(exit_block)
+        exit_block.predecessors.add(cond_block)
 
-            for b in fallthrough_exits:
-                self.cfg.add_edge(b, merge_block)
-        else:
-            all_other_exits = [b for b in fallthrough_exits if b is not merge_block]
-            
-            for b in all_other_exits:
-                self.cfg.add_edge(b, merge_block)
+        # Continue building from the exit block
+        self.current_block = exit_block
 
-        self.current_block = merge_block
-
-class SingleStatementBuilder(ast.NodeVisitor):
-    def __init__(self, cfg: ControlFlowGraph):
-        self.cfg = cfg
-        self.current_block = cfg.entry
-
-    def visit_Assign(self, node):
-        self.current_block.add_statement(Statement(
-            stmt_type=StatementType.ASSIGNMENT,
-            def_set={node.targets[0].id},
-            use_set=get_uses(node.value),
-            ast_node=node
-        ))
-
-        new_block = BasicBlock()
-        self.cfg.add_edge(self.current_block, new_block)
-        self.current_block = new_block
-        self.cfg.add_block(self.current_block)
-
-    def visit_Call(self, node):
-        if isinstance(node.func, ast.Name) and node.func.id == "print":
-            self.current_block.add_statement(Statement(
-                stmt_type=StatementType.PRINT,
-                def_set=set(),
-                use_set=get_uses(node),
-                ast_node=node
-            ))
-        
-        elif isinstance(node.func, ast.Name) and node.func.id == "source":
-            self.current_block.add_statement(Statement(
-                stmt_type=StatementType.SOURCE,
-                def_set=set(),
-                use_set=set(),
-                ast_node=node
-            ))
-
-        elif isinstance(node.func, ast.Name) and node.func.id == "sink":
-            self.current_block.add_statement(Statement(
-                stmt_type=StatementType.SINK,
-                def_set=set(),
-                use_set=get_uses(node),
-                ast_node=node
-            ))
-
-        new_block = BasicBlock()
-        self.cfg.add_edge(self.current_block, new_block)
-        self.current_block = new_block
-        self.cfg.add_block(self.current_block)
-
-    def visit_If(self, node):
-        self.current_block.add_statement(Statement(
-            stmt_type=StatementType.IF,
-            def_set=set(),
-            use_set=get_uses(node.test),
-            ast_node=node
-        ))
-
-        new_block = BasicBlock()
-        self.cfg.add_edge(self.current_block, new_block)
-        self.current_block = new_block
-        self.cfg.add_block(self.current_block)
-
-    def visit_While(self, node):
-        self.current_block.add_statement(Statement(
-            stmt_type=StatementType.WHILE,
-            def_set=set(),
-            use_set=get_uses(node.test),
-            ast_node=node
-        ))
-
-        new_block = BasicBlock()
-        self.cfg.add_edge(self.current_block, new_block)
-        self.current_block = new_block
-        self.cfg.add_block(self.current_block)
 
 def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
     """
@@ -488,6 +417,7 @@ def make_cfg_manager(ast_node: ast.AST) -> ControlFlowGraph:
     cfg.exit = final_exit
     
     return cfg
+
 
 def make_queue(cfg: ControlFlowGraph):
     #create in and out set for each bb
@@ -573,7 +503,7 @@ def reaching_definition(cfg: ControlFlowGraph):
 
 def get_uses(node):
     if node is None:
-        return []
+        return set()
 
     uses = set()
 
@@ -622,7 +552,7 @@ def get_uses(node):
     if isinstance(node, ast.Return):
         uses.update(get_uses(node.value))
 
-    return list(uses)
+    return set(uses)
 
 def missing_return(cfg: ControlFlowGraph):
     for block in cfg.blocks:
@@ -657,74 +587,170 @@ def missing_return(cfg: ControlFlowGraph):
     if cfg.exit.in_set:
         print("Missing return statement(s) detected.")
 
-def taint_analysis(cfg: ControlFlowGraph):
+def taint_analysis_statement(statement: Statement, in_set: Set[str], out_set: Set[str]):
+    if statement.stmt_type == StatementType.SINK:
+        for var in statement.use_set:
+            if var in in_set:
+                print(f"Tainted data reached sink via variable '{var}'")
+    elif statement.stmt_type == StatementType.ASSIGNMENT:
+        for var in statement.def_set:
+            if var in in_set:
+                out_set.add(var)
+            else:
+                if var in out_set:
+                    out_set.remove(var)
+    elif statement.stmt_type == StatementType.SOURCE:
+        for var in statement.def_set:
+            out_set.add(var)
 
-    # remove entry and exit blocks
-    # cfg.blocks.discard(cfg.entry)
-    # cfg.blocks.discard(cfg.exit)
 
-    # cfg.entry.successors.clear()
-    # cfg.exit.predecessors.clear()
-
-    for each_block in cfg.blocks:
-        each_block.in_set = set()
-        each_block.out_set = set()
+def generate_statement_worklist(cfg: ControlFlowGraph):
+    worklist = []
+    block_id = 1
     
-    changed = True
+    # Map to track which worklist items belong to which original block
+    # Format: {original_block_id: [(statement_index, worklist_index), ...]}
+    block_to_worklist = {}
+    
+    # First pass: create worklist items for each statement
+    for each_block in sorted(cfg.blocks, key=lambda b: b.id):
+        if each_block.id == "Entry" or each_block.id == "Exit":
+            continue
+            
+        block_statements = []
+        
+        for stmt_idx, stmt in enumerate(each_block.statements):
+            # Check if this is an assignment from source()
+            is_source_assignment = False
+            if stmt.stmt_type == StatementType.ASSIGNMENT and stmt.ast_node:
+                # Check if the right-hand side is a call to source()
+                if isinstance(stmt.ast_node, ast.Assign):
+                    if isinstance(stmt.ast_node.value, ast.Call):
+                        if isinstance(stmt.ast_node.value.func, ast.Name) and stmt.ast_node.value.func.id == "source":
+                            is_source_assignment = True
+            
+            worklist_item = {
+                'block_id': f'BB{block_id}',
+                'statement': stmt.stmt_type,
+                'original_block_id': each_block.id,
+                'stmt_index': stmt_idx,
+                'def_set': stmt.def_set.copy(),
+                'use_set': stmt.use_set.copy(),
+                'is_source_assignment': is_source_assignment,
+                'in_set': set(),
+                'out_set': set(),
+                'predecessors': set(),
+                'successors': set()
+            }
+            worklist.append(worklist_item)
+            block_statements.append((stmt_idx, len(worklist) - 1))
+            block_id += 1
+        
+        block_to_worklist[each_block.id] = block_statements
+    
+    # Second pass: set up predecessors and successors
+    for each_block in cfg.blocks:
+        if each_block.id == "Entry" or each_block.id == "Exit":
+            continue
+        
+        if each_block.id not in block_to_worklist or not block_to_worklist[each_block.id]:
+            continue
+        
+        block_worklist_items = block_to_worklist[each_block.id]
+        num_stmts = len(block_worklist_items)
+        
+        for i, (stmt_idx, worklist_idx) in enumerate(block_worklist_items):
+            current_item = worklist[worklist_idx]
+            
+            # Set predecessors
+            if i == 0:
+                # First statement: predecessors are the last statements of predecessor blocks
+                for pred_block in each_block.predecessors:
+                    if pred_block.id == "Entry":
+                        # If predecessor is Entry, this is the first statement of the CFG
+                        # Add Entry as a special predecessor (or skip if you want)
+                        continue
+                    elif pred_block.id in block_to_worklist and block_to_worklist[pred_block.id]:
+                        # Add the last statement of the predecessor block
+                        last_stmt_worklist_idx = block_to_worklist[pred_block.id][-1][1]
+                        current_item['predecessors'].add(worklist[last_stmt_worklist_idx]['block_id'])
+            else:
+                # Middle statements: predecessor is the previous statement in the same block
+                prev_worklist_idx = block_worklist_items[i - 1][1]
+                current_item['predecessors'].add(worklist[prev_worklist_idx]['block_id'])
+            
+            # Set successors
+            if i == num_stmts - 1:
+                # Last statement: successors are the first statements of successor blocks
+                for succ_block in each_block.successors:
+                    if succ_block.id == "Exit":
+                        # If successor is Exit, this is the last statement before exit
+                        continue
+                    elif succ_block.id in block_to_worklist and block_to_worklist[succ_block.id]:
+                        # Add the first statement of the successor block
+                        first_stmt_worklist_idx = block_to_worklist[succ_block.id][0][1]
+                        current_item['successors'].add(worklist[first_stmt_worklist_idx]['block_id'])
+            else:
+                # Middle statements: successor is the next statement in the same block
+                next_worklist_idx = block_worklist_items[i + 1][1]
+                current_item['successors'].add(worklist[next_worklist_idx]['block_id'])
+    
+    return worklist
 
+def transfer_taint(block, in_set):
+    out_set = set(in_set)
+    defs = block['def_set']
+    uses = block['use_set']
+    stmt_type = block['statement']
+
+    if block.get('is_source_assignment', False):
+        out_set |= defs
+    elif stmt_type == 'assignment':
+        defined_var = next(iter(defs)) if defs else None
+        if not uses:
+            if defined_var:
+                out_set.discard(defined_var)
+        elif any(v in in_set for v in uses):
+            if defined_var:
+                out_set.add(defined_var)
+        else:
+            if defined_var:
+                out_set.discard(defined_var)
+    elif stmt_type in ('if', 'while'):
+        pass
+
+    return out_set
+
+def run_taint_analysis(worklist):
+    changed = True
     while changed:
         changed = False
-        for bb in cfg.blocks:
-
-            if bb.id == "Entry" or bb.id == "Exit":
-                # changed = True
-                continue
-
-            old_in = bb.in_set.copy()
-            old_out = bb.out_set.copy()
-
-            # update in set
-            new_in = set()
-            for pred in bb.predecessors:
-                new_in = new_in | pred.out_set
-            bb.in_set = new_in
-
-            # # update out set
-            # bb.out_set = bb.in_set.copy()
-
-            # for stmt in bb.statements:
-            #     if stmt.stmt_type == StatementType.ASSIGNMENT:
-            #         for var in stmt.def_set:
-            #             if var in bb.out_set:
-            #                 bb.out_set.remove(var)
-            #     for var in stmt.use_set:
-            #         bb.out_set.add(var)
-
-            for stmt in bb.statements:
-                if stmt.stmt_type == StatementType.SINK:
-                    for var in stmt.use_set:
-                        if var in bb.in_set:
-                            print(f"Tainted data reached sink in block {bb.id} via variable '{var}'")
-                elif stmt.stmt_type == StatementType.ASSIGNMENT:
-                    for var in stmt.def_set:
-                        if var in bb.in_set:
-                            bb.out_set.add(var)
-                        else:
-                            if var in bb.out_set:
-                                bb.out_set.remove(var)
-                elif stmt.stmt_type == StatementType.SOURCE:
-                    for var in stmt.def_set:
-                        bb.out_set.add(var)
-
-            # check if changed
-            if bb.in_set != old_in or bb.out_set != old_out:
+        for block in worklist:
+            preds = block['predecessors']
+            in_set = set().union(*(b['out_set'] for b in worklist if b['block_id'] in preds))
+            block['in_set'] = in_set
+            new_out = transfer_taint(block, in_set)
+            if new_out != block['out_set']:
+                block['out_set'] = new_out
                 changed = True
-        print("Taint Analysis Results:")
-        for block in sorted(cfg.blocks, key=lambda b: b.id):
-            print(f"Basic Block {block.id}:")
-            print(f"\tIn: {block.in_set}")
-            print(f"\tOut: {block.out_set}")
-        input("Press Enter to continue...")
+
+    # --- After convergence: check for tainted sinks ---
+    for block in worklist:
+        if block['statement'] == 'sink':
+            for v in block['use_set']:
+                if v in block['in_set']:
+                    print(f"{block['block_id']}: tainted variable {v} reaches sink")
+
+
+def taint_analysis(cfg: ControlFlowGraph):
+
+    worklist = generate_statement_worklist(cfg)
+
+    run_taint_analysis(worklist)
+    
+    print("Initial Worklist:")
+    for item in worklist:
+        print(f"\t{item}")
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "stores":
@@ -755,11 +781,12 @@ def do_returns(fname):
 def do_taints(fname):
     # print("TAINTS not implemented")
     tree = ast.parse(open(fname).read(), filename=fname)
+    # print(ast.dump(tree, indent=4))
     my_cfg = make_cfg_manager(tree)
     my_cfg.cfg_print()
 
     # Perform taint analysis
-    # taint_analysis(my_cfg)
+    taint_analysis(my_cfg)
     return -1
 
 
