@@ -558,16 +558,25 @@ def missing_return(cfg: ControlFlowGraph):
     for block in cfg.blocks:
         for stmt in block.statements:
             if stmt.stmt_type == StatementType.RETURN:
-                block.remove_edge(cfg.exit)
+                block.successors.discard(cfg.exit)
+                cfg.exit.predecessors.discard(block)
     
+    all_cfg_blocks = []
+    all_cfg_blocks.append(cfg.entry)
     for block in cfg.blocks:
+        all_cfg_blocks.append(block)
+    all_cfg_blocks.append(cfg.exit)
+
+    for block in all_cfg_blocks:
         block.in_set = set()
         block.out_set = set()
+
+    all_cfg_blocks[0].in_set = {True}
     
     changed = True
     while changed:
         changed = False
-        for bb in cfg.blocks:
+        for bb in all_cfg_blocks:
             old_in = bb.in_set.copy()
             old_out = bb.out_set.copy()
 
@@ -581,11 +590,12 @@ def missing_return(cfg: ControlFlowGraph):
             bb.out_set = bb.in_set
 
             # check if changed
-            if bb.in_rd != old_in or bb.out_rd != old_out:
+            if bb.in_set != old_in or bb.out_set != old_out:
                 changed = True
     
-    if cfg.exit.in_set:
-        print("Missing return statement(s) detected.")
+    for bb in cfg.blocks:
+        if cfg.exit in bb.successors:
+            print(f"{bb.id}: there exists a path to exit without return")
 
 def taint_analysis_statement(statement: Statement, in_set: Set[str], out_set: Set[str]):
     if statement.stmt_type == StatementType.SINK:
@@ -772,7 +782,7 @@ def do_stores(fname):
 def do_returns(fname):
     #print("RETURNS not implemented")
     tree = ast.parse(open(fname).read(), filename=fname)
-    my_cfg = make_cfg(tree)
+    my_cfg = make_cfg_manager(tree)
 
     missing_return(my_cfg)
     return -1
