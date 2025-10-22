@@ -1,36 +1,41 @@
-def func():
-    # Input program
-    # while x > 0:
-    #     return -1
-    # return 3
+# def func():
+#     # Input program
+#     # while x > 0:
+#     #     return -1
+#     # return 3
 
-    # if x == 0:
-    #     return 0
-    # else:
-    #     return 1
+#     # if x == 0:
+#     #     return 0
+#     # else:
+#     #     return 1
 
-    # if x > 0:
-    #     while x != 0:
-    #         x -= 1
-    #         return 3
-    #     return 4
-    # else:
-    #     return 5
-
-
-    # if x == 0:
-    #     return 0
-    # else:
-    #     x = 0
+#     # if x > 0:
+#     #     while x != 0:
+#     #         x -= 1
+#     #         return 3
+#     #     return 4
+#     # else:
+#     #     return 5
 
 
-    if x > 0:
-        while x != 0:
-            x -= 1
-            return 3
-    else:
-        return 4
+#     # if x == 0:
+#     #     return 0
+#     # else:
+#     #     x = 0
 
+
+#     if x > 0:
+#         while x != 0:
+#             x -= 1
+#             return 3
+#     else:
+#         return 4
+
+# x = 5
+# y = 1
+# while x > 0:
+#     y = y - 1
+#     x = x - 1
 
 # x = source()
 # y = 0

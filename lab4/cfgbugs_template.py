@@ -274,56 +274,100 @@ class Builder(ast.NodeVisitor):
             ))
 
     def visit_If(self, node):
-        # Add IF condition into current block
+        # Record the if condition in the current block
         self.current_block.add_statement(Statement(
             stmt_type=StatementType.IF,
             def_set=set(),
-            use_set=get_uses(node.test),
+            use_set=set(get_uses(node.test)),
             ast_node=node
         ))
 
-        parent_block = self.current_block
+        # Save reference to the block containing the IF statement
+        if_block = self.current_block
 
-        then_module = ast.Module(body=node.body, type_ignores=[])
-        then_cfg = make_cfg(then_module)
-        self.cfg.blocks.update(then_cfg.blocks)
-        self.cfg.add_edge(parent_block, then_cfg.entry)
-        then_exits = [b for b in then_cfg.blocks if len(b.successors) == 0]
+        # --- THEN branch ---
+        then_block = BasicBlock()
+        self.cfg.add_block(then_block)
+        # link current -> then_block
+        if_block.successors.add(then_block)
+        then_block.predecessors.add(if_block)
 
+        # If the first statement of the then-branch is a While, set
+        # current to then_block so visit_While can reuse it as the cond block.
+        if node.body and isinstance(node.body[0], ast.While):
+            self.current_block = then_block
+            # visit each stmt in the then body; visit_While will handle blocks correctly
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            # Otherwise visit the then branch normally starting from then_block
+            self.current_block = then_block
+            for stmt in node.body:
+                self.visit(stmt)
+
+        # Save end of then branch to link to next
+        then_end_block = self.current_block
+
+        # --- ELSE branch ---
         if node.orelse:
-            else_module = ast.Module(body=node.orelse, type_ignores=[])
-            else_cfg = make_cfg(else_module)
-            self.cfg.blocks.update(else_cfg.blocks)
-            self.cfg.add_edge(parent_block, else_cfg.entry)
-            else_exits = [b for b in else_cfg.blocks if len(b.successors) == 0]
+            else_block = BasicBlock()
+            self.cfg.add_block(else_block)
+            # connect from the IF's original block to else_block
+            if_block.successors.add(else_block)
+            else_block.predecessors.add(if_block)
+
+            # visit else branch starting from else_block
+            self.current_block = else_block
+            for stmt in node.orelse:
+                self.visit(stmt)
+            else_end_block = self.current_block
         else:
-            else_exits = [parent_block]
-        
-        all_exits = then_exits + else_exits
-        merge_block = None    
+            else_end_block = None
 
-        for b in all_exits:
-            if b is not parent_block and not b.statements:
-                merge_block = b
-                break
+        # --- Create a join/continuation block ---
+        join_block = BasicBlock()
+        self.cfg.add_block(join_block)
 
-        if merge_block is None:
-            merge_block = BasicBlock()
-            self.cfg.add_block(merge_block)
-            
-            for b in all_exits:
-                self.cfg.add_edge(b, merge_block)
+        # link then_end -> join
+        then_end_block.successors.add(join_block)
+        join_block.predecessors.add(then_end_block)
+
+        # link else_end -> join (if present)
+        if else_end_block:
+            else_end_block.successors.add(join_block)
+            join_block.predecessors.add(else_end_block)
         else:
-            all_other_exits = [b for b in all_exits if b is not merge_block]
-            
-            for b in all_other_exits:
-                self.cfg.add_edge(b, merge_block)
+            # If there was no else, also link the if-block (the one containing IF stmt) to join
+            if_block.successors.add(join_block)
+            join_block.predecessors.add(if_block)
 
-        self.current_block = merge_block
+        # continue from the join
+        self.current_block = join_block
+
 
     def visit_While(self, node):
-        # Use the current block for the while condition (avoid creating an empty pre-loop block)
-        cond_block = self.current_block
+        """
+        Create a canonical loop header block for the while condition.
+        If the current block is an empty connector (newly-created then-block),
+        reuse it as the condition block. Otherwise allocate a fresh condition block.
+        """
+
+        cur = self.current_block
+
+        # Decide whether to reuse the current block as the condition block:
+        # reuse if it has no statements (it's an empty connector).
+        reuse_as_cond = (len(cur.statements) == 0)
+
+        if reuse_as_cond:
+            cond_block = cur
+        else:
+            cond_block = BasicBlock()
+            self.cfg.add_block(cond_block)
+            # link cur -> cond_block
+            cur.successors.add(cond_block)
+            cond_block.predecessors.add(cur)
+
+        # Add the while condition statement into cond_block
         cond_block.add_statement(Statement(
             stmt_type=StatementType.WHILE,
             def_set=set(),
@@ -331,29 +375,30 @@ class Builder(ast.NodeVisitor):
             ast_node=node
         ))
 
-        # Create body block
+        # Create loop body block
         body_block = BasicBlock()
         self.cfg.add_block(body_block)
         cond_block.successors.add(body_block)
         body_block.predecessors.add(cond_block)
 
-        # Visit loop body
+        # Visit the body inside body_block
         self.current_block = body_block
         for stmt in node.body:
             self.visit(stmt)
 
-        # Connect the end of the body back to the condition (loop back edge)
+        # Back-edge from body end -> condition
         self.current_block.successors.add(cond_block)
         cond_block.predecessors.add(self.current_block)
 
-        # Create exit block (after the loop)
+        # Create exit block (false branch)
         exit_block = BasicBlock()
         self.cfg.add_block(exit_block)
         cond_block.successors.add(exit_block)
         exit_block.predecessors.add(cond_block)
 
-        # Continue building from the exit block
+        # Continue from exit
         self.current_block = exit_block
+
 
 
 def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
@@ -758,9 +803,9 @@ def taint_analysis(cfg: ControlFlowGraph):
 
     run_taint_analysis(worklist)
     
-    print("Initial Worklist:")
-    for item in worklist:
-        print(f"\t{item}")
+    # print("Initial Worklist:")
+    # for item in worklist:
+    #     print(f"\t{item}")
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "stores":
