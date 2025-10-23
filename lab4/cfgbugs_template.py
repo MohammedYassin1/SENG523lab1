@@ -815,7 +815,6 @@ def taint_analysis(cfg: ControlFlowGraph):
     #     print(f"\t{item}")
 
 def dead_store(cfg: ControlFlowGraph):
-    # Compute block-level liveness (standard backward dataflow)
     for bb in cfg.blocks:
         bb.in_set = set()
         bb.out_set = set()
