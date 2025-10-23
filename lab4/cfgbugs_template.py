@@ -38,8 +38,12 @@ class BasicBlock:
 
     def add_statement(self, stmt: Statement):
         self.statements.append(stmt)
+        # Update use_set with uses that occur before any local definition
+        for u in stmt.use_set:
+            if u not in self.def_set:
+                self.use_set.add(u)
+        # Now update def_set with this statement's definitions
         self.def_set.update(stmt.def_set)
-        self.use_set.update(stmt.use_set)
 
     def liveness_str(self):
         # if self.id == "Entry":
@@ -329,17 +333,19 @@ class Builder(ast.NodeVisitor):
         self.cfg.add_block(join_block)
 
         # link then_end -> join
-        then_end_block.successors.add(join_block)
-        join_block.predecessors.add(then_end_block)
+        if not (then_end_block.statements and then_end_block.statements[-1].stmt_type == StatementType.RETURN):
+            then_end_block.successors.add(join_block)
+            join_block.predecessors.add(then_end_block)
 
         # link else_end -> join (if present)
         if else_end_block:
-            else_end_block.successors.add(join_block)
-            join_block.predecessors.add(else_end_block)
+            if not (else_end_block.statements and else_end_block.statements[-1].stmt_type == StatementType.RETURN):
+                else_end_block.successors.add(join_block)
+                join_block.predecessors.add(else_end_block)
         else:
-            # If there was no else, also link the if-block (the one containing IF stmt) to join
-            if_block.successors.add(join_block)
-            join_block.predecessors.add(if_block)
+            if not (if_block.statements and if_block.statements[-1].stmt_type == StatementType.RETURN):
+                if_block.successors.add(join_block)
+                join_block.predecessors.add(if_block)
 
         # continue from the join
         self.current_block = join_block
@@ -386,9 +392,10 @@ class Builder(ast.NodeVisitor):
         for stmt in node.body:
             self.visit(stmt)
 
-        # Back-edge from body end -> condition
-        self.current_block.successors.add(cond_block)
-        cond_block.predecessors.add(self.current_block)
+        # control does not loop back to the condition.
+        if not (self.current_block.statements and self.current_block.statements[-1].stmt_type == StatementType.RETURN):
+            self.current_block.successors.add(cond_block)
+            cond_block.predecessors.add(self.current_block)
 
         # Create exit block (false branch)
         exit_block = BasicBlock()
@@ -807,6 +814,47 @@ def taint_analysis(cfg: ControlFlowGraph):
     # for item in worklist:
     #     print(f"\t{item}")
 
+def dead_store(cfg: ControlFlowGraph):
+    # Compute block-level liveness (standard backward dataflow)
+    for bb in cfg.blocks:
+        bb.in_set = set()
+        bb.out_set = set()
+
+    changed = True
+    while changed:
+        changed = False
+        for bb in cfg.blocks:
+            old_in = bb.in_set.copy()
+            old_out = bb.out_set.copy()
+
+            new_out = set()
+            for succ in bb.successors:
+                new_out |= getattr(succ, 'in_set', set())
+            bb.out_set = new_out
+
+            bb.in_set = bb.use_set | (bb.out_set - bb.def_set)
+
+            if bb.in_set != old_in or bb.out_set != old_out:
+                changed = True
+    for bb in sorted(cfg.blocks, key=lambda b: getattr(b, 'id', '')):
+        if bb.id in ("Entry", "Exit"):
+            continue
+
+        live = set(bb.out_set)
+        dead_stores = set()
+
+        for stmt in reversed(bb.statements):
+            if stmt.stmt_type == StatementType.ASSIGNMENT:
+                for d in stmt.def_set:
+                    if d not in live:
+                        dead_stores.add(d)
+
+            live -= set(stmt.def_set)
+            live |= set(stmt.use_set)
+        
+        for ds in dead_stores:
+            print(f"{bb.id}: variable {ds} definition is never used")
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "stores":
         return do_stores(sys.argv[2])
@@ -820,7 +868,9 @@ def main():
     
 # Exercise 1
 def do_stores(fname):
-    print("STORES not implemented")
+    tree = ast.parse(open(fname).read(), filename=fname)
+    my_cfg = make_cfg_manager(tree)
+    dead_store(my_cfg)
     return -1
 
 # Exercise 2
@@ -838,7 +888,7 @@ def do_taints(fname):
     tree = ast.parse(open(fname).read(), filename=fname)
     # print(ast.dump(tree, indent=4))
     my_cfg = make_cfg_manager(tree)
-    my_cfg.cfg_print()
+    #my_cfg.cfg_print()
 
     # Perform taint analysis
     taint_analysis(my_cfg)
