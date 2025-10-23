@@ -433,6 +433,34 @@ def make_cfg(ast_node: ast.AST) -> ControlFlowGraph:
     cfg.exit = builder.current_block
     return cfg
 
+
+def _remove_empty_blocks(cfg: ControlFlowGraph):
+    remove_list = []
+    for bb in list(cfg.blocks):
+        if bb.id in ("Entry", "Exit"):
+            continue
+        if not bb.statements:
+            remove_list.append(bb)
+
+    for bb in remove_list:
+        preds = list(bb.predecessors)
+        succs = list(bb.successors)
+
+        for p in preds:
+            p.successors.discard(bb)
+        for s in succs:
+            s.predecessors.discard(bb)
+
+        for p in preds:
+            for s in succs:
+                if s is p:
+                    continue
+                p.successors.add(s)
+                s.predecessors.add(p)
+
+        if bb in cfg.blocks:
+            cfg.blocks.remove(bb)
+
 def make_cfg_manager(ast_node: ast.AST) -> ControlFlowGraph:
     """
     Constructs a Control Flow Graph (CFG) using a manager from the given AST node (tree or subtree).
@@ -441,6 +469,9 @@ def make_cfg_manager(ast_node: ast.AST) -> ControlFlowGraph:
     entry = EntryBlock()
     
     cfg = make_cfg(ast_node)
+
+    # Remove empty connector blocks 
+    _remove_empty_blocks(cfg)
     
     inner_exit_block = cfg.exit
     
