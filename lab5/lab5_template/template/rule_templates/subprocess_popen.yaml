@@ -1,0 +1,7 @@
+rules:
+  - id: subprocess-shell-variable
+    message: "Potential command injection: subprocess called with shell=True and variable command"
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      # TODO: add patterns to detect relevant calls

@@ -1,0 +1,14 @@
+rules:
+  - id: py-open-variable
+    message: "Potential path traversal: open() called with variable or mixed path"
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      # Fill in the detection rules
+  
+  - id: py-join-variable
+    message: "Potential path traversal: os.path.join() with variable or mixed input"
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      # Fill in the detection rules

@@ -1,0 +1,6 @@
+rules:
+  - id: os-system-any
+    message: "Use of os.system detected"
+    severity: WARNING
+    languages: [python]
+    pattern: os.system(...)
