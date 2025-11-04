@@ -1,6 +1,9 @@
 rules:
-  - id: os-system-any
-    message: "Use of os.system detected"
+  - id: os-system-var
+    message: "Use of os.system with variable input"
     severity: WARNING
     languages: [python]
-    pattern: os.system(...)
+    patterns:
+      - pattern: os.system($X)
+      - pattern-not: os.system("...")
+      - pattern-not: os.system('...')
