@@ -3,12 +3,27 @@ rules:
     message: "Potential path traversal: open() called with variable or mixed path"
     severity: WARNING
     languages: [python]
-    pattern-either:
-      # Fill in the detection rules
+    patterns: 
+      - pattern-either:
+        # Fill in the detection rules
+        - pattern: open($X)
+        - pattern: open($X + "...")
+        - pattern: open("..." + $X)
+      - pattern-not: open("...")
+      - pattern-not: open("..." + "...")
+
+      
   
   - id: py-join-variable
     message: "Potential path traversal: os.path.join() with variable or mixed input"
     severity: WARNING
     languages: [python]
-    pattern-either:
-      # Fill in the detection rules
+    patterns:
+      - pattern-either:
+        # Fill in the detection rules
+        - pattern: os.path.join($X)
+        - pattern: os.path.join($X, "...")
+        - pattern: os.path.join("...", $X)
+        - pattern: os.path.join($Y, $X)
+      - pattern-not: os.path.join("...")
+      - pattern-not: os.path.join("...", "...")
