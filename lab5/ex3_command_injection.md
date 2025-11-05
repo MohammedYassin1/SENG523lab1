@@ -1,0 +1,2 @@
+## Changes Made
+I changed the id and message to better reflect the application. I also changed what patterns were being detected by having it detect all patterns using "os.system($X)" and having it exclude patterns made up of only constant strings by using pattern-not with os.system("...") and os.system('...').

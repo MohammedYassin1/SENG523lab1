@@ -1,0 +1,11 @@
+## command_injection.py
+There are three vulnerabilities present in command_injection.py, these are located at line 7, 10, and 13. The reason that these are vulnerabilies is that they accept non constant inputs from a user without proper sanitization. This allows the user to direcly pass commands to the system. In the case of os.system(cmd) these commands can be passed directly, and in the case of os.system("ls" + user) and os.system(f"echo {user}") the user can chain multiple melitious commands.
+
+## eval_exec.py
+There are two vulnerabilities present in eval_exec.py, these are located in lines 2 and 5. The reason these are vulnerabilies is that they accept non constant inputs without proper sanitization. Assuming these inputs are from the user, malitious python code can be used to read and write files or run other malitious python code. For the case of eval(expr), this allows for the user to run a single line of pyhon code, while for the case exec(code) allows the user to run a full block of code.
+
+## subprocess_popen.py
+There are vulnerabilities present in subprocess_popen.py. The reason these are vulnerabilies is that they accept non constant inputs without proper sanitization and that they use shell=True. shell=True in popen allows for commands to run through the system shell, and when used with user input can lead to the injection of malitous commands. This occours in lines 7 and 13. Another area with a vulnerability is line 10 because sh -c still directly invokes the commmand shell allowing for command injections.
+
+## path_traversal.py
+Path traversal vulnerability allows users to access files outside of intended directories. These vulnerabilites are present in lines 4, 8, 16, and 20. open(user) allows for the user to directly open whatever path given, open("uploads/" + user) can be used with ../ to access any file outside of the given directory, os.path.join(base, name) name can contain .. which allows the user to leave the base, and os.path.join(base, "downloads") would allow the user to set the base to any loctation. The last two examples would depend on which arguments are user inputs.
