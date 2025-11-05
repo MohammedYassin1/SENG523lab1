@@ -1,0 +1,19 @@
+rules:
+  - id: subprocess-shell-variable
+    message: "Potential command injection: subprocess called with shell=True and variable or expression command"
+    severity: WARNING
+    languages: [python]
+    
+    patterns:
+    - pattern-either:
+      - pattern: subprocess.Popen($CMD, shell=True, ...)
+      - pattern: subprocess.run($CMD, shell=True, ...)
+
+    - pattern-not:
+        pattern-either:
+        - pattern: subprocess.Popen("...", shell=True, ...)
+        - pattern: subprocess.run("...", shell=True, ...)
+        - pattern: subprocess.Popen(["...", "..."], shell=True, ...)
+        - pattern: subprocess.run(["...", "..."], shell=True, ...)
+        - pattern: subprocess.Popen(["..."], shell=True, ...)
+        - pattern: subprocess.run(["..."], shell=True, ...)

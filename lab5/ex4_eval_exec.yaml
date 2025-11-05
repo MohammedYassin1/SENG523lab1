@@ -1,0 +1,16 @@
+rules:
+  - id: py-eval-variable
+    message: Use of eval with variable (possible code injection)
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: eval($VAR, ...)
+      - pattern-not: eval("...", ...)
+
+  - id: py-exec-variable
+    message: Use of exec with variable (possible code injection)
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: exec($VAR, ...)
+      - pattern-not: exec("...", ...)
