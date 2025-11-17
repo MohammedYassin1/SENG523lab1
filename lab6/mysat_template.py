@@ -23,7 +23,65 @@ class LogicNode:
         if self.op2:
             node_str = self.op2.to_string(indent_level+2, node_str)
         return node_str
+    
+class Builder(ast.NodeVisitor):
+    def __init__(self):
+        self.root = None
 
+    def generic_visit(self, node):
+        # print(f"Visiting node type: {type(node).__name__}")
+        return super().generic_visit(node)
+    
+    def visit_Call(self, node):
+        func_name = node.func.id
+        # print(f"Visiting function call: {func_name}")
+        if func_name == "AND":
+            logic_node = LogicNode("AND", None)
+        elif func_name == "OR":
+            logic_node = LogicNode("OR", None)
+        elif func_name == "NOT":
+            logic_node = LogicNode("NOT", None)
+        elif func_name == "IMPL":
+            logic_node = LogicNode("IMPL", None)
+        else:
+            raise ValueError(f"Unknown function: {func_name}")
+        
+        if self.root is None:
+            self.root = logic_node
+        
+        if len(node.args) >= 1:
+            logic_node.op1 = self.visit(node.args[0])
+        if len(node.args) == 2:
+            logic_node.op2 = self.visit(node.args[1])
+
+        # print(f"{logic_node.ntype}\n{logic_node.nsym}\n{logic_node.op1}\n{logic_node.op2}\n--------------------")
+        
+        # print(f"Constructed {logic_node.to_string()} node")
+        # self.logic_tree.add_node(logic_node.ntype if logic_node.nsym is None else logic_node.nsym)
+        return logic_node
+    
+    def visit_Name(self, node):
+        # print(f"Visiting symbol: {node.id}")
+        logic_node = LogicNode("SYM", node.id)
+        # print(f"Constructed {logic_node.to_string()} node")
+        return logic_node
+
+def build_visualizer_tree(logic_node, visualizer):
+
+    if logic_node is None:
+        return None
+    
+    label = logic_node.ntype if logic_node.nsym is None else logic_node.nsym
+    node_id = visualizer.add_node(label)
+    
+    if logic_node.op1:
+        child_id1 = build_visualizer_tree(logic_node.op1, visualizer)
+        visualizer.add_edge(node_id, child_id1)
+    if logic_node.op2:
+        child_id2 = build_visualizer_tree(logic_node.op2, visualizer)
+        visualizer.add_edge(node_id, child_id2)
+    
+    return node_id
 
 class TreeVisualizer:
     def __init__(self):
@@ -77,10 +135,19 @@ def main():
         sys.exit(1)
 
 def parse(input_file):
-    return None
+    ast_tree = ast.parse(open(input_file).read())
+    builder = Builder()
+    builder.visit(ast_tree)
+    # print(builder.root.to_string())
+    return builder.root
 
 
 def visualize(input_file):
+    parse_tree = parse(input_file)
+    # print(parse_tree.to_string())
+    visualizer = TreeVisualizer()
+    build_visualizer_tree(parse_tree, visualizer)
+    visualizer.render(f"{input_file.replace('.py', '')}_output.png")
     return 0
 
 

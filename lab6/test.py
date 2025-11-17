@@ -1,0 +1,1 @@
+IMPL(z, AND(x, NOT(y)))
