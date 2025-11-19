@@ -1,6 +1,7 @@
 import sys
 import ast
 from graphviz import Digraph
+import itertools
 
 class LogicNode:
     def __init__(self, ntype, nsym):
@@ -139,7 +140,33 @@ class TreeVisualizer:
         except Exception as e:
             print(f"Error rendering graph: {e}")
 
+def collect_vars(node, vars_set):
+    if node is None:
+        return
+    if node.ntype == "SYM":
+        vars_set.add(node.nsym)
+    if node.op1:
+        collect_vars(node.op1, vars_set)
+    if node.op2:
+        collect_vars(node.op2, vars_set)
 
+
+def eval_node(node, assignment):
+    if node is None:
+        return False
+    if node.ntype == "SYM":
+        return bool(assignment.get(node.nsym, False))
+    if node.ntype == "NOT":
+        return not eval_node(node.op1, assignment)
+    if node.ntype == "AND":
+        return eval_node(node.op1, assignment) and eval_node(node.op2, assignment)
+    if node.ntype == "OR":
+        return eval_node(node.op1, assignment) or eval_node(node.op2, assignment)
+    if node.ntype == "IMPL":
+        a = eval_node(node.op1, assignment)
+        b = eval_node(node.op2, assignment)
+        return (not a) or b
+    
 def main():
     if len(sys.argv) != 3:
         print("Usage: python mysat.py <operation> <input_file>")
@@ -183,6 +210,23 @@ def evaluate(input_file):
 
 
 def solve(input_file):
+    root = parse(input_file)
+
+    vars_set = set()
+    collect_vars(root, vars_set)
+    vars_list = sorted(vars_set)
+    found = False
+    for combo in itertools.product([True, False], repeat=len(vars_list)):
+        assignment = dict(zip(vars_list, combo))
+
+        if eval_node(root, assignment):
+            pairs = [f"{v}: {assignment[v]}" for v in vars_list]
+            print("SAT: " + ", ".join(pairs))
+            found = True
+            break
+
+    if not found:
+        print("UNSAT")
     return 0
 
 
