@@ -27,6 +27,7 @@ class LogicNode:
 class Builder(ast.NodeVisitor):
     def __init__(self):
         self.root = None
+        self.dict = {}
 
     def generic_visit(self, node):
         # print(f"Visiting node type: {type(node).__name__}")
@@ -65,6 +66,11 @@ class Builder(ast.NodeVisitor):
         logic_node = LogicNode("SYM", node.id)
         # print(f"Constructed {logic_node.to_string()} node")
         return logic_node
+    def visit_Assign(self, node):
+        target = node.targets[0]
+        if isinstance(node.value, ast.Constant):
+            self.dict[target.id] = node.value.value
+
 
 def build_visualizer_tree(logic_node, visualizer):
 
@@ -82,6 +88,22 @@ def build_visualizer_tree(logic_node, visualizer):
         visualizer.add_edge(node_id, child_id2)
     
     return node_id
+
+def evaluate_logic(node, dictionary):
+    #variablre itself
+    if node.nsym != None:
+        return dictionary.get(node.nsym)
+
+    if node.ntype == "AND":
+        return evaluate_logic(node.op1, dictionary) and evaluate_logic(node.op2, dictionary)
+    
+    if node.ntype == "OR":
+        return evaluate_logic(node.op1, dictionary) or evaluate_logic(node.op2, dictionary)
+    if node.ntype == "NOT":
+        return not evaluate_logic(node.op1, dictionary)
+
+    if node.ntype == "IMPL":
+        return not evaluate_logic(node.op1, dictionary) or evaluate_logic(node.op2, dictionary)
 
 class TreeVisualizer:
     def __init__(self):
@@ -152,6 +174,11 @@ def visualize(input_file):
 
 
 def evaluate(input_file):
+    ast_tree = ast.parse(open(input_file).read())
+    builder = Builder()
+    builder.visit(ast_tree)
+    result = evaluate_logic(builder.root, builder.dict)
+    print("The formula evaluates to", result)
     return 0
 
 
