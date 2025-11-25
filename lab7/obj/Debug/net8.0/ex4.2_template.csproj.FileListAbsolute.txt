@@ -1,0 +1,15 @@
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.AssemblyInfoInputs.cache
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.AssemblyInfo.cs
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.csproj.CoreCompileInputs.cache
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.sourcelink.json
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\ex4.2_template.exe
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.dll
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\refint\ex4.2_template.dll
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.pdb
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\ex4.2_template.deps.json
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ex4.2_template.genruntimeconfig.cache
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\ex4.2_template.runtimeconfig.json
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\ex4.2_template.dll
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\obj\Debug\net8.0\ref\ex4.2_template.dll
+C:\Users\KenziePC\Desktop\School\SENG523lab1\lab7\ex4.2_template.pdb

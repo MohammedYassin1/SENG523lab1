@@ -1,7 +1,15 @@
 method Clamp(x: int, lo: int, hi: int) returns (r: int)
   // TODO: method contract
+  requires lo <= hi
 {
   // TODO: method implementation
+  if x < lo {
+    return lo;
+  } else if x > hi {
+    return hi;
+  } else {
+    return x;
+  }
 }
 
 method Main(args: seq<string>)

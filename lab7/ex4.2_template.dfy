@@ -1,7 +1,15 @@
 method Max3(a: int, b: int, c: int) returns (m: int)
   // TODO: method contract
+  ensures m == a || m == b || m == c
 {
   // TODO: method implementation
+  if a >= b && a >= c {
+    return a;
+  } else if b >= c && b >= a {
+    return b;
+  } else {
+    return c;
+  }
 }
 
 method Main(args: seq<string>)

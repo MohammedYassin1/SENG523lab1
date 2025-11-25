@@ -1,7 +1,9 @@
 function SumUpTo(n: nat): nat
   // TODO: method contract
+  requires n >= 0
 {
   // TODO: method implementation
+  if n <= 1 then n else n + SumUpTo(n - 1)
 }
 
 

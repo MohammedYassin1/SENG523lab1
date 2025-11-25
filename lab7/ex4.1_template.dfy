@@ -1,7 +1,14 @@
 method Abs(x: int) returns (r: int)
   // TODO: method contract
+  ensures r == x || r == -x
+  ensures r >= 0
 {
   // TODO: method implementation
+  if x < 0 {
+    return -x;
+  } else {
+    return x;
+  }
 }
 
 
@@ -18,6 +25,7 @@ method Main(args: seq<string>)
   }
 
   var x := ParseInt(realArgs[0]);
+  print x;
   var r := Abs(x);
   print r, "\n";
 }
