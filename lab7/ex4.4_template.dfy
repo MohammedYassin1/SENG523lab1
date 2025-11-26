@@ -1,6 +1,7 @@
 function SumUpTo(n: nat): nat
   // TODO: method contract
   requires n >= 0
+  ensures SumUpTo(n) == n*(n + 1) / 2
   decreases n
 {
   // TODO: method implementation
