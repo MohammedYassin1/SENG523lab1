@@ -8,6 +8,14 @@ lemma {:induction false} BumpGreater(n: int)
   ensures Bump(n) > n
 {
   // TODO: add proof of lemma
+  if n<=0{
+    assert Bump(n) == 1;
+  }else{
+    assert Bump(n) == Bump(n-1) +1;
+    BumpGreater(n-1);
+    assert Bump(n-1) > n-1;
+    assert Bump(n) > n;
+  }
 }
 
 
