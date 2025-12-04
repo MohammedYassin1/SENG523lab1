@@ -23,7 +23,9 @@ method ExampleLemmaUse(a: int) {
     // TODO: state lemma appropriately to enable
     // Dafny to prove the final assertion
     var b := Bump(a);
+    BumpGreater(a);
     var c := Bump(b);
+    BumpGreater(b);
     assert 2 <= c - a;
 }
 
