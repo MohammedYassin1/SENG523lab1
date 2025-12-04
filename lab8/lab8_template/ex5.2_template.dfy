@@ -5,7 +5,10 @@ method SumOdd(n: int) returns (sum: int)
   sum := 0;
   while i < n
     // TODO: add invariant(s)
+    invariant sum == i * i
+    invariant 0 <= i <= n
     // TODO: add decreases clause
+    decreases n - i
   {
     sum := sum + (2 * i + 1);
     i := i + 1;
